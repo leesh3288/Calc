@@ -13,6 +13,7 @@
 #define CONST_PI 3.14159265358979323846L
 #define CONST_PHI 1.61803398874989484820L
 
+#define EPS 1E-10 /// TODO: Testing out epsilon values for proper calc / Is is proper to use such values?
 
 std::stack<long double> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
 std::stack<char> OpSt;
@@ -86,12 +87,12 @@ void process()
 			else if (strcmp(cons, "phi") == 0)
 				OutSt.push(CONST_PHI);
 		}
-		else if (equ[ite] >= 'a'&&equ[ite] <= 'z') // function
+		else if ((equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_') // function
 		{
 			char funcs[MAXL_FUNC + 1];
 			int cct;
 
-			for (cct = 0; (equ[ite] >= '0'&&equ[ite] <= '9') || (equ[ite] >= 'a'&&equ[ite] <= 'z'); ite++, cct++)
+			for (cct = 0; (equ[ite] >= '0'&&equ[ite] <= '9') || (equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_'; ite++, cct++)
 				funcs[cct] = equ[ite];
 			funcs[cct] = '\0';
 
@@ -213,13 +214,20 @@ void output()
 void OFProc(char ofnum) // operator/function processor
 {
 	// operator
-	if (ofnum == 2)
+	if (ofnum == 2) /// TODO: Floating point precision error, change to integer calc
 	{
 		long double n;
 		n = OutSt.top();
 		OutSt.pop();
 
-		OutSt.push(tgamma(n + 1));
+		int in = (int)(n + 0.5);
+
+		n = 1;
+
+		for (int i = 2; i <= in; i++)
+			n *= i;
+
+		OutSt.push(round(n));
 	}
 	else if (ofnum == 3)
 	{
@@ -491,6 +499,7 @@ void OFProc(char ofnum) // operator/function processor
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
+		OutSt.pop();
 
 		OutSt.push(log(n2) / log(n1));
 	}
@@ -510,42 +519,97 @@ void OFProc(char ofnum) // operator/function processor
 
 		OutSt.push(erfc(n));
 	}
-	else if (ofnum == 50)
+	else if (ofnum == 50) /// TODO: Floating point precision error, change to integer calc
 	{
 		long double n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
+		OutSt.pop();
 
-		OutSt.push(tgamma(n1 + 1) / tgamma(n1 - n2 + 1));
+		OutSt.push(round(tgamma(n1 + 1) / tgamma(n1 - n2 + 1)));
 	}
-	else if (ofnum == 51)
+	else if (ofnum == 51) /// TODO: Floating point precision error, change to integer calc
 	{
 		long double n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
+		OutSt.pop();
 
-		OutSt.push(tgamma(n1 + 1) / (tgamma(n1 - n2 + 1) * tgamma(n2 + 1)));
+		OutSt.push(round(tgamma(n1 + 1) / (tgamma(n1 - n2 + 1) * tgamma(n2 + 1))));
 	}
-	/*else if (ofnum == 52)
+	else if (ofnum == 52)
 	{
 		long double n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
+		OutSt.pop();
 
-		OutSt.push(); /// P(n1, n2)
+		int in1 = (int)(n1 + 0.5), in2 = (int)(n2 + 0.5);
+		long long int res = 0;
+
+		in1++; in2++;
+		int *grid = new int[in1*in1]; // access by grid[in1*y+x]
+
+		for (int i = 0; i < in1; i++)
+			for (int j = 0; j < in1; j++)
+				grid[in1*j + i] = 0;
+
+		if (in1 < in2)
+			in2 = 1; // forcing result to zero
+		grid[in1*(in2 - 1) + in1 - 1] = 1;
+
+		for (int i = in1 - 1; i >= 1; i--) // x
+		{
+			for (int j = in2 - 1; j >= 3; j--) // y
+			{
+				if (i == j)
+					res += grid[in1*j + i];
+				else
+					if (grid[in1*j + i] > 0)
+						for (int k = 1; k <= j && k <= i - j; k++)
+							grid[in1*k + i - j] += grid[in1*j + i];
+			}
+
+			if (grid[in1 * 1 + i] > 0)
+				res += grid[in1 * 1 + i];
+			if (grid[in1 * 2 + i] > 0)
+				res += (i / 2)*grid[in1 * 2 + i];
+		}
+
+		OutSt.push((long double)res);
+
+		delete[] grid;
 	}
-	else if (ofnum == 53)
+	else if (ofnum == 53) /// TODO: Floating point precision error, change to integer calc
 	{
 		long double n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
+		OutSt.pop();
 
-		OutSt.push(); /// S(n1, n2)
-	}*/
+		long double val = 0, tmp;
+		bool isNeg = false;
+
+		for (int i = 0; i <= n2; i++)
+		{
+			tmp = pow(n2 - i, n1);
+			tmp /= tgamma(i + 1);
+			tmp /= tgamma(n2 - i + 1);
+
+			if (isNeg)
+				val -= tmp;
+			else
+				val += tmp;
+
+			isNeg = !isNeg;
+		}
+
+		OutSt.push(round(val));
+	}
 	else if (ofnum == 54)
 	{
 		long double n;
@@ -554,13 +618,13 @@ void OFProc(char ofnum) // operator/function processor
 
 		OutSt.push(tgamma(n));
 	}
-	/*else if (ofnum == 55)
+	/*else if (ofnum == 55) /// TODO: E(n)
 	{
 		long double n;
 		n = OutSt.top();
 		OutSt.pop();
 
-		OutSt.push(); /// E(n)
+		OutSt.push();
 	}*/
 
 	return;
