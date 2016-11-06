@@ -13,7 +13,7 @@
 #define CONST_PI 3.14159265358979323846L
 #define CONST_PHI 1.61803398874989484820L
 
-#define EPS 1E-10 /// TODO: Testing out epsilon values for proper calc / Is is proper to use such values?
+#define EPS 1E-15 /// TODO: Testing out epsilon values for proper calc / Is it proper to use such values?
 
 std::stack<long double> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
 std::stack<char> OpSt;
@@ -119,6 +119,15 @@ void process()
 			OpSt.push(1);
 
 			ite++;
+
+			if (equ[ite] == '-') // solution for the negative number input -n: (-n) => (-1*n)
+			{
+				OutSt.push((long double)-1);
+
+				OpSt.push(4); // multiplication operator '*'
+
+				ite++;
+			}
 		}
 		else if (equ[ite] == ')') // right paren
 		{
@@ -618,21 +627,96 @@ void OFProc(char ofnum) // operator/function processor
 
 		OutSt.push(tgamma(n));
 	}
-	/*else if (ofnum == 55) /// TODO: E(n)
+	else if (ofnum == 55) // EllipticK(n), calculated by AGM
 	{
 		long double n;
 		n = OutSt.top();
 		OutSt.pop();
 
-		OutSt.push();
-	}*/
+		long double a0 = 0, b0 = 0, a1 = 1 + n, b1 = 1 - n, c;
+		c = a1 - b1;
+
+		while (std::abs(c) > EPS) // Arithmetic-Geometric Mean algorithm, a1 and b1 converges
+		{
+			a0 = a1;
+			b0 = b1;
+
+			a1 = (a0 + b0) / 2;
+			b1 = sqrt(a0*b0);
+
+			c = a1 - b1;
+		}
+
+		OutSt.push(CONST_PI / (2 * a1));
+	}
+	else if (ofnum == 56) // EllipticE(n), calculated by AGM, Landen Transformation & much more calculations
+	{
+		long double n, res = 0;
+		n = OutSt.top();
+		OutSt.pop();
+
+		long double a0 = 0, b0 = 0, a1 = 1, b1 = sqrt(1 - n*n), c;
+		long long int powtwo = 1;
+		c = sqrt(a1*a1 - b1*b1); // only for first term
+
+		res += powtwo*c*c;
+
+		while (std::abs(c) > EPS) // AGM
+		{
+			a0 = a1;
+			b0 = b1;
+
+			a1 = (a0 + b0) / 2;
+			b1 = sqrt(a0*b0);
+
+			c = (a0 - b0) / 2;
+			powtwo *= 2;
+
+			res += powtwo*c*c;
+		}
+
+		OutSt.push((1 - res / 2)*CONST_PI / (2 * a1));
+	}
+	else if (ofnum == 57)
+	{
+		long double n1, n2;
+		n1 = OutSt.top();
+		OutSt.pop();
+		n2 = OutSt.top();
+		OutSt.pop();
+		bool isNeg = false;
+		if (n1 < 0 && n2 < 0)
+		{
+			isNeg = true;
+			n1 *= -1;
+			n2 *= -1;
+		}
+
+		long double a0 = 0, b0 = 0, a1 = n1, b1 = n2, c;
+		c = a1 - b1;
+
+		while (std::abs(c) > EPS)
+		{
+			a0 = a1;
+			b0 = b1;
+
+			a1 = (a0 + b0) / 2;
+			b1 = sqrt(a0*b0);
+
+			c = a1 - b1;
+		}
+
+		if (isNeg)
+			a1 *= -1;
+		OutSt.push(a1);
+	}
 
 	return;
 }
 
 int OPrecComp(char o1, char o2)
 {
-	if ((o1 == 4 && o2 == 5) || (o1 == 5 && o2 == 4) || (o1 == 6 && o2 == 7) || (o1 == 7 && o2 == 6))
+	if ((o1 == 4 && o2 == 5) || (o1 == 5 && o2 == 4) || (o1 == 6 && o2 == 7) || (o1 == 7 && o2 == 6) || (o1 == o2))
 		return 0;
 	else if (o1 < o2) // precedence: o1 > o2
 		return 1;
@@ -723,8 +807,13 @@ char FHash(char str[])
 	else if (strcmp(str, "gamma") == 0)
 		return 54;
 
-	else if (strcmp(str, "E") == 0)
+	else if (strcmp(str, "EllipticK") == 0)
 		return 55;
+	else if (strcmp(str, "EllipticE") == 0)
+		return 56;
+
+	else if (strcmp(str, "AGM") == 0)
+		return 57;
 
 	return -1;
 }
@@ -776,7 +865,7 @@ Operator/Function Hash Values:
 45 = asech
 46 = acoth
 
-47 = log  //(base, exponand)
+47 = log(base, exponand)
 
 48 = erf
 49 = erfc
@@ -788,7 +877,10 @@ Operator/Function Hash Values:
 
 54 = gamma
 
-55 = E (Complete elliptic integral of the second kind)
+55 = EllipticK (Complete elliptic integral of the first kind)
+56 = EllipticE (Complete elliptic integral of the second kind)
+
+57 = AGM (Arithmetic-Geometric Mean)
 
 ~255 reserved
 */
