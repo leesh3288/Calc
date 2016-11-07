@@ -71,32 +71,32 @@ void process()
 
 			OutSt.push(inp);
 		}
-		else if (equ[ite] == '#') // mathematical constant (=number input)
+		else if ((equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_') // function & constants (input w/o #)
 		{
-			char cons[MAXL_CONST + 1];
-			int cct;
-
-			for (ite++, cct = 0; (equ[ite] >= '0'&&equ[ite] <= '9') || (equ[ite] >= 'a'&&equ[ite] <= 'z'); ite++, cct++)
-				cons[cct] = equ[ite];
-			cons[cct] = '\0';
-
-			if (strcmp(cons, "pi") == 0)
-				OutSt.push(CONST_PI);
-			else if (strcmp(cons, "e") == 0)
-				OutSt.push(CONST_E);
-			else if (strcmp(cons, "phi") == 0)
-				OutSt.push(CONST_PHI);
-		}
-		else if ((equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_') // function
-		{
-			char funcs[MAXL_FUNC + 1];
+			char fcs[MAXL_FUNC + 1];
 			int cct;
 
 			for (cct = 0; (equ[ite] >= '0'&&equ[ite] <= '9') || (equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_'; ite++, cct++)
-				funcs[cct] = equ[ite];
-			funcs[cct] = '\0';
+				fcs[cct] = equ[ite];
+			fcs[cct] = '\0';
 
-			OpSt.push(FHash(funcs));
+			if (strcmp(fcs, "pi") == 0) // checks if it's a predefined constant
+			{
+				OutSt.push(CONST_PI);
+				continue;
+			}
+			else if (strcmp(fcs, "e") == 0)
+			{
+				OutSt.push(CONST_E);
+				continue;
+			}
+			else if (strcmp(fcs, "phi") == 0)
+			{
+				OutSt.push(CONST_PHI);
+				continue;
+			}
+
+			OpSt.push(FHash(fcs));
 		}
 		else if (equ[ite] == ',') // comma (parameter separator)
 		{
@@ -108,7 +108,7 @@ void process()
 
 			if (OpSt.empty())
 			{
-				printf("Error: Left parenthesis not encountered, parsing failed.\n");
+				printf("Error(P): Left parenthesis not encountered, parsing failed.\n");
 				return;
 			}
 
@@ -122,7 +122,7 @@ void process()
 
 			if (equ[ite] == '-') // solution for the negative number input -n: (-n) => (-1*n)
 			{
-				OutSt.push((long double)-1);
+				OutSt.push(-1.0L);
 
 				OpSt.push(4); // multiplication operator '*'
 
@@ -139,7 +139,7 @@ void process()
 
 			if (OpSt.empty())
 			{
-				printf("Error: Left parenthesis not encountered, parsing failed.\n");
+				printf("Error(P): Left parenthesis not encountered, parsing failed.\n");
 				return;
 			}
 
@@ -200,6 +200,11 @@ void process()
 
 	while (!OpSt.empty())
 	{
+		if (OpSt.top() == 1) // if LParen is left over
+		{
+			printf("Error(P): Left parenthesis remaining (right parenthesis missing), parsing failed.\n");
+			return;
+		}
 		OFProc(OpSt.top());
 		OpSt.pop();
 	}
@@ -209,13 +214,21 @@ void process()
 
 void output()
 {
+	bool term = false;
+
 	if (OutSt.size() != 1)
 	{
-		printf("Error: Size of output stack != 1\n");
-		return;
+		printf("Error(O): Size of output stack != 1\n");
+		term = true;
+	}
+	if (!OpSt.empty())
+	{
+		printf("Error(O): Operator stack not empty.\n");
+		term = true;
 	}
 
-	printf("Result: %.15lf\n", OutSt.top());
+	if (!term)
+		printf("Result: %.15lf\n", OutSt.top());
 
 	return;
 }
@@ -886,6 +899,6 @@ Operator/Function Hash Values:
 */
 
 /*
-Mathematical constants are used with a preceding '#'
-Lists: #pi, #e, #phi
+Constants list
+Lists: pi, e, phi
 */
