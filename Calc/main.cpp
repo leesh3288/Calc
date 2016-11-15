@@ -1,10 +1,16 @@
-#define _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable: 4146)
+#pragma warning(disable: 4800)
+#pragma warning(disable: 4996)
 
 #include <cstdio>
 #include <cstring>
 #include <cmath>
 #include <stack>
 #include <algorithm>
+#include <mpirxx.h>
+#include <mpreal.h>
+
+using mpfr::mpreal;
 
 #define MAXL_CONST 10
 #define MAXL_FUNC 10
@@ -19,6 +25,7 @@ std::stack<long double> OutSt; // originally an output QUEUE, implemented as a s
 std::stack<char> OpSt;
 
 char equ[100000];
+int bitprec;
 
 void input();
 void process();
@@ -36,15 +43,26 @@ int main(void)
 
 void input()
 {
+	int rad;
+
 	printf("Input Equation\n >> ");
 	scanf("%[^\n]", equ);
+	printf("Input Precision (in format \"Precision:Radix\")\n >> ");
+	scanf("%d:%d", &bitprec, &rad);
+
+	bitprec++; // 1 more just for safety
+	if (rad != 2)
+		bitprec = (int)(bitprec*log((long double)rad) / log(2.0L));
+	bitprec++;
+
+	mpf_set_default_prec(bitprec);
 
 	return;
 }
 
 void process()
 {
-	int ite = 0, eqlen = strlen(equ);
+	int ite = 0, eqlen = (int)strlen(equ);
 
 	while (ite < eqlen)
 	{
