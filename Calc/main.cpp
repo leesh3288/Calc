@@ -1,31 +1,31 @@
-#pragma warning(disable: 4146)
-#pragma warning(disable: 4800)
-#pragma warning(disable: 4996)
+#pragma warning(disable: 4146) // unsigned type unary minus operator
+#pragma warning(disable: 4800) // int value force cast to bool
+#pragma warning(disable: 4996) // deprecation
 
 #include <cstdio>
 #include <cstring>
 #include <cmath>
+#include <vector>
 #include <stack>
+#include <map>
 #include <algorithm>
 #include <mpirxx.h>
 #include <mpreal.h>
+#include <iostream>
 
 using mpfr::mpreal;
 
 #define MAXL_CONST 10
 #define MAXL_FUNC 10
 
-#define CONST_E 2.71828182845904523536L
-#define CONST_PI 3.14159265358979323846L
-#define CONST_PHI 1.61803398874989484820L
 
-#define EPS 1E-15 /// TODO: Testing out epsilon values for proper calc / Is it proper to use such values?
-
-std::stack<long double> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
+std::stack<mpreal> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
 std::stack<char> OpSt;
+std::map<const char*, mpreal> CV; // ConstVal, saves constant values as desired precision
 
-char equ[100000];
-int bitprec;
+char equ[100000], outtype[10];
+int decprec;
+bool isSCI;
 
 void input();
 void process();
@@ -43,25 +43,30 @@ int main(void)
 
 void input()
 {
-	int rad;
-
 	printf("Input Equation\n >> ");
 	scanf("%[^\n]", equ);
-	printf("Input Precision (in format \"Precision:Radix\")\n >> ");
-	scanf("%d:%d", &bitprec, &rad);
+	printf("Input Precision (Significant Digits)\n >> ");
+	scanf("%d", &decprec);
+	printf("Output in Normalized Scientific Notation(SCI) or Decimal Form(DEC)\n >> ");
+	scanf("%s", outtype);
+	for (int i = 0; outtype[i] != '\0'; i++)
+		outtype[i] = toupper(outtype[i]);
+	if (strcmp(outtype, "SCI") == 0)
+		isSCI = true;
 
-	bitprec++; // 1 more just for safety
-	if (rad != 2)
-		bitprec = (int)(bitprec*log((long double)rad) / log(2.0L));
-	bitprec++;
-
-	mpf_set_default_prec(bitprec);
+	mpreal::set_default_prec(mpfr::digits2bits(decprec + 1));
 
 	return;
 }
 
 void process()
 {
+	// const values init
+	CV["pi"] = mpfr::const_pi();
+	CV["e"] = mpfr::const_euler();
+	CV["catalan"] = mpfr::const_catalan();
+	CV["eps"] = std::numeric_limits<mpreal>::epsilon(); // the smallest value eps such that 1 + eps != eps (classic machine epsilon) | eps is NOT A CONSTANT
+
 	int ite = 0, eqlen = (int)strlen(equ);
 
 	while (ite < eqlen)
@@ -70,22 +75,14 @@ void process()
 			ite++;
 		else if (equ[ite] >= '0' && equ[ite] <= '9') // number
 		{
-			long double inp = 0;
-			for (; equ[ite] >= '0'&&equ[ite] <= '9'; ite++)
-			{
-				inp *= 10;
-				inp += (equ[ite] - '0');
-			}
+			int st = ite;
+			mpreal inp;
+			for (; equ[ite] >= '0'&&equ[ite] <= '9'; ite++);
 
 			if (equ[ite] == '.')
-			{
-				long double dec = 1;
-				for (ite++; equ[ite] >= '0' && equ[ite] <= '9'; ite++)
-				{
-					dec /= 10;
-					inp += (equ[ite] - '0')*dec;
-				}
-			}
+				for (ite++; equ[ite] >= '0' && equ[ite] <= '9'; ite++);
+
+			mpfr_strtofr(inp.mpfr_ptr(), equ+st, NULL, 10, mpreal::get_default_rnd());
 
 			OutSt.push(inp);
 		}
@@ -100,17 +97,17 @@ void process()
 
 			if (strcmp(fcs, "pi") == 0) // checks if it's a predefined constant
 			{
-				OutSt.push(CONST_PI);
+				OutSt.push(CV["pi"]);
 				continue;
 			}
 			else if (strcmp(fcs, "e") == 0)
 			{
-				OutSt.push(CONST_E);
+				OutSt.push(CV["e"]);
 				continue;
 			}
-			else if (strcmp(fcs, "phi") == 0)
+			else if (strcmp(fcs, "catalan") == 0)
 			{
-				OutSt.push(CONST_PHI);
+				OutSt.push(CV["catalan"]);
 				continue;
 			}
 
@@ -140,7 +137,7 @@ void process()
 
 			if (equ[ite] == '-') // solution for the negative number input -n: (-n) => (-1*n)
 			{
-				OutSt.push(-1.0L);
+				OutSt.push(mpreal(-1));
 
 				OpSt.push(4); // multiplication operator '*'
 
@@ -177,7 +174,13 @@ void process()
 
 			if (equ[ite] == '!') // process factorials immediately w/o pushing at OpSt
 			{
-				OFProc(2);
+				if (equ[ite + 1] == '!')
+				{
+					ite++;
+					OFProc(8);
+				}
+				else
+					OFProc(2);
 
 				ite++;
 				continue;
@@ -246,7 +249,19 @@ void output()
 	}
 
 	if (!term)
-		printf("Result: %.15lf\n", OutSt.top());
+	{
+		if (isSCI)
+		{
+			mpfr_out_str(stdout, 10, decprec, OutSt.top().mpfr_srcptr(), mpreal::get_default_rnd());
+			printf("\n");
+		}
+		else
+		{
+			char form[15];
+			sprintf(form, "%%.%dRNg\n", decprec);
+			mpfr_printf(form, OutSt.top().mpfr_srcptr());
+		}
+	}
 
 	return;
 }
@@ -254,24 +269,19 @@ void output()
 void OFProc(char ofnum) // operator/function processor
 {
 	// operator
-	if (ofnum == 2) /// TODO: Floating point precision error, change to integer calc
+	if (ofnum == 2)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
-		int in = (int)(n + 0.5);
+		mpfr_fac_ui(n.mpfr_ptr(), n.toULong(mpreal::get_default_rnd()), mpreal::get_default_rnd());
 
-		n = 1;
-
-		for (int i = 2; i <= in; i++)
-			n *= i;
-
-		OutSt.push(round(n));
+		OutSt.push(n);
 	}
 	else if (ofnum == 3)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -281,7 +291,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 4)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -291,7 +301,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 5)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -301,7 +311,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 6)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -311,7 +321,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 7)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -319,11 +329,22 @@ void OFProc(char ofnum) // operator/function processor
 
 		OutSt.push(n1 - n2);
 	}
+	else if (ofnum == 8)
+	{
+		mpreal n;
+		mpz_class tmp;
+		n = OutSt.top();
+		OutSt.pop();
+
+		mpz_2fac_ui(tmp.get_mpz_t(), n.toULLong(mpreal::get_default_rnd()));
+
+		OutSt.push(mpreal(tmp.get_mpz_t()));
+	}
 
 	// function
 	else if (ofnum == 21)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -333,7 +354,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 22)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -343,7 +364,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 23)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -351,7 +372,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 24)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -359,7 +380,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 25)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -367,7 +388,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 26)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -375,7 +396,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 27)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -383,7 +404,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 28)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -391,7 +412,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 29)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -399,7 +420,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 30)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -407,7 +428,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 31)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -415,7 +436,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 32)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -423,7 +444,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 33)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -431,7 +452,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 34)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -439,7 +460,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 35)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -447,7 +468,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 36)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -455,7 +476,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 37)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -463,7 +484,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 38)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -471,7 +492,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 39)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -479,7 +500,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 40)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -487,7 +508,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 41)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -495,7 +516,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 42)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -503,7 +524,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 43)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -511,7 +532,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 44)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -519,7 +540,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 45)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -527,7 +548,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 46)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -535,7 +556,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 47)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
@@ -545,7 +566,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 48)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -553,45 +574,56 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 49)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
 		OutSt.push(erfc(n));
 	}
-	else if (ofnum == 50) /// TODO: Floating point precision error, change to integer calc
+	else if (ofnum == 50)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
+		mpz_class tmp, t1, t2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
 		OutSt.pop();
 
-		OutSt.push(round(tgamma(n1 + 1) / tgamma(n1 - n2 + 1)));
+		mpfr_get_z(t1.get_mpz_t(), n1.mpfr_srcptr(), mpreal::get_default_rnd());
+		mpfr_get_z(t2.get_mpz_t(), n2.mpfr_srcptr(), mpreal::get_default_rnd());
+		mpz_bin_ui(tmp.get_mpz_t(), t1.get_mpz_t(), t2.get_ui());
+		mpz_fac_ui(t1.get_mpz_t(), t2.get_ui());
+
+		OutSt.push(mpreal(((mpz_class)(tmp*t1)).get_mpz_t()));
 	}
-	else if (ofnum == 51) /// TODO: Floating point precision error, change to integer calc
+	else if (ofnum == 51)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
+		mpz_class tmp, t1, t2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
 		OutSt.pop();
 
-		OutSt.push(round(tgamma(n1 + 1) / (tgamma(n1 - n2 + 1) * tgamma(n2 + 1))));
+		mpfr_get_z(t1.get_mpz_t(), n1.mpfr_srcptr(), mpreal::get_default_rnd());
+		mpfr_get_z(t2.get_mpz_t(), n2.mpfr_srcptr(), mpreal::get_default_rnd());
+		mpz_bin_ui(tmp.get_mpz_t(), t1.get_mpz_t(), t2.get_ui());
+
+		OutSt.push(mpreal(tmp.get_mpz_t()));
 	}
 	else if (ofnum == 52)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
 		OutSt.pop();
 
-		int in1 = (int)(n1 + 0.5), in2 = (int)(n2 + 0.5);
-		long long int res = 0;
+		int in1 = n1.toLong(mpreal::get_default_rnd()), in2 = n2.toLong(mpreal::get_default_rnd()); // input restricted to (signed) int range due to indexing & memory
+		mpz_class res = 0;
 
 		in1++; in2++;
-		int *grid = new int[in1*in1]; // access by grid[in1*y+x]
+		mpz_class *grid = new mpz_class[in1*in1]; // access by grid[in1*y+x]
 
 		for (int i = 0; i < in1; i++)
 			for (int j = 0; j < in1; j++)
@@ -619,26 +651,34 @@ void OFProc(char ofnum) // operator/function processor
 				res += (i / 2)*grid[in1 * 2 + i];
 		}
 
-		OutSt.push((long double)res);
+		OutSt.push(mpreal(res.get_mpz_t()));
 
 		delete[] grid;
 	}
-	else if (ofnum == 53) /// TODO: Floating point precision error, change to integer calc
+	else if (ofnum == 53)
 	{
-		long double n1, n2;
+		mpreal n1, n2;
+		mpz_class i1, i2;
 		n2 = OutSt.top();
 		OutSt.pop();
 		n1 = OutSt.top();
 		OutSt.pop();
+		mpfr_get_z(i1.get_mpz_t(), n1.mpfr_srcptr(), mpreal::get_default_rnd());
+		mpfr_get_z(i2.get_mpz_t(), n2.mpfr_srcptr(), mpreal::get_default_rnd());
 
-		long double val = 0, tmp;
-		bool isNeg = false;
+		mpz_class ft;
+		mpreal val = 0, tmp;
+		bool isNeg = (bool)(i2.get_ui()&1);
 
-		for (int i = 0; i <= n2; i++)
+		for (mpz_class i = 0; i <= i2; i++)
 		{
-			tmp = pow(n2 - i, n1);
-			tmp /= tgamma(i + 1);
-			tmp /= tgamma(n2 - i + 1);
+			mpz_pow_ui(ft.get_mpz_t(), i.get_mpz_t(), i1.get_ui());
+			tmp = mpreal(ft.get_mpz_t());
+
+			mpz_fac_ui(ft.get_mpz_t(), i.get_ui()); // input restricted to unsigned (long) int range due to internal factorial function parameter type
+			tmp /= ft.get_mpz_t();
+			mpz_fac_ui(ft.get_mpz_t(), ((mpz_class)(i2 - i)).get_ui());
+			tmp /= ft.get_mpz_t();
 
 			if (isNeg)
 				val -= tmp;
@@ -652,7 +692,7 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 54)
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
@@ -660,39 +700,35 @@ void OFProc(char ofnum) // operator/function processor
 	}
 	else if (ofnum == 55) // EllipticK(n), calculated by AGM
 	{
-		long double n;
+		mpreal n;
 		n = OutSt.top();
 		OutSt.pop();
 
-		long double a0 = 0, b0 = 0, a1 = 1 + n, b1 = 1 - n, c;
-		c = a1 - b1;
+		mpfr_agm(n.mpfr_ptr(), mpreal((1 + n)).mpfr_srcptr(), mpreal((1 - n)).mpfr_srcptr(), mpreal::get_default_rnd());
 
-		while (std::abs(c) > EPS) // Arithmetic-Geometric Mean algorithm, a1 and b1 converges
-		{
-			a0 = a1;
-			b0 = b1;
-
-			a1 = (a0 + b0) / 2;
-			b1 = sqrt(a0*b0);
-
-			c = a1 - b1;
-		}
-
-		OutSt.push(CONST_PI / (2 * a1));
+		OutSt.push(CV["pi"] / (2 * n));
 	}
 	else if (ofnum == 56) // EllipticE(n), calculated by AGM, Landen Transformation & much more calculations
 	{
-		long double n, res = 0;
+		mpreal n, res = 0;
 		n = OutSt.top();
 		OutSt.pop();
 
-		long double a0 = 0, b0 = 0, a1 = 1, b1 = sqrt(1 - n*n), c;
-		long long int powtwo = 1;
+		mpreal a0 = 0, b0 = 0, a1 = 1, b1 = sqrt(1 - n*n), c, powtwo = 1;
+		n.setPrecision(mpreal::get_default_prec() + 10); // add about 10 precision (to make c converge less than epsilon)
+		res.setPrecision(mpreal::get_default_prec() + 10);
+		a0.setPrecision(mpreal::get_default_prec() + 10);
+		b0.setPrecision(mpreal::get_default_prec() + 10);
+		a1.setPrecision(mpreal::get_default_prec() + 10);
+		b1.setPrecision(mpreal::get_default_prec() + 10);
+		c.setPrecision(mpreal::get_default_prec() + 10);
+		powtwo.setPrecision(mpreal::get_default_prec());
+
 		c = sqrt(a1*a1 - b1*b1); // only for first term
 
 		res += powtwo*c*c;
 
-		while (std::abs(c) > EPS) // AGM
+		while (abs(c) > mpfr::machine_epsilon(mpreal::get_default_prec() + 2)) // AGM | add about 2 precision & take machine epsilon
 		{
 			a0 = a1;
 			b0 = b1;
@@ -706,40 +742,32 @@ void OFProc(char ofnum) // operator/function processor
 			res += powtwo*c*c;
 		}
 
-		OutSt.push((1 - res / 2)*CONST_PI / (2 * a1));
+		mpreal ans = (1 - res / 2)*CV["pi"] / (2 * a1);
+		ans.setPrecision(mpreal::get_default_prec());
+		OutSt.push(ans);
 	}
 	else if (ofnum == 57)
 	{
-		long double n1, n2;
-		n1 = OutSt.top();
-		OutSt.pop();
+		mpreal n1, n2;
 		n2 = OutSt.top();
 		OutSt.pop();
-		bool isNeg = false;
-		if (n1 < 0 && n2 < 0)
-		{
-			isNeg = true;
-			n1 *= -1;
-			n2 *= -1;
-		}
+		n1 = OutSt.top();
+		OutSt.pop();
 
-		long double a0 = 0, b0 = 0, a1 = n1, b1 = n2, c;
-		c = a1 - b1;
+		mpfr_agm(n1.mpfr_ptr(), n1.mpfr_srcptr(), n2.mpfr_srcptr(), mpreal::get_default_rnd());
 
-		while (std::abs(c) > EPS)
-		{
-			a0 = a1;
-			b0 = b1;
+		OutSt.push(n1);
+	}
+	else if (ofnum == 58)
+	{
+		mpreal n;
+		mpz_class tmp;
+		n = OutSt.top();
+		OutSt.pop();
 
-			a1 = (a0 + b0) / 2;
-			b1 = sqrt(a0*b0);
+		mpz_fib_ui(tmp.get_mpz_t(), n.toULLong(mpreal::get_default_rnd()));
 
-			c = a1 - b1;
-		}
-
-		if (isNeg)
-			a1 *= -1;
-		OutSt.push(a1);
+		OutSt.push(mpreal(tmp.get_mpz_t()));
 	}
 
 	return;
@@ -846,6 +874,9 @@ char FHash(char str[])
 	else if (strcmp(str, "AGM") == 0)
 		return 57;
 
+	else if (strcmp(str, "fib") == 0)
+		return 58;
+
 	return -1;
 }
 
@@ -860,7 +891,8 @@ Operator/Function Hash Values:
 5 = Div / L
 6 = Add / L
 7 = Sub / L
-8~20 = Reserved
+8 = DoubleFact / unary
+9~20 = Reserved
 (1>2>3>(4, 5)>(6, 7))
 
 =========================================
@@ -913,10 +945,12 @@ Operator/Function Hash Values:
 
 57 = AGM (Arithmetic-Geometric Mean)
 
+58 = fib (nth fibonacci sequence)
+
 ~255 reserved
 */
 
 /*
 Constants list
-Lists: pi, e, phi
+Lists: pi, e, catalan
 */
