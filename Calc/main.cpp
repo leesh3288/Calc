@@ -715,14 +715,14 @@ void OFProc(char ofnum) // operator/function processor
 		OutSt.pop();
 
 		mpreal a0 = 0, b0 = 0, a1 = 1, b1 = sqrt(1 - n*n), c, powtwo = 1;
-		n.setPrecision(mpreal::get_default_prec() + 10); // add about 10 precision (to make c converge less than epsilon)
-		res.setPrecision(mpreal::get_default_prec() + 10);
-		a0.setPrecision(mpreal::get_default_prec() + 10);
-		b0.setPrecision(mpreal::get_default_prec() + 10);
-		a1.setPrecision(mpreal::get_default_prec() + 10);
-		b1.setPrecision(mpreal::get_default_prec() + 10);
-		c.setPrecision(mpreal::get_default_prec() + 10);
-		powtwo.setPrecision(mpreal::get_default_prec());
+		n.setPrecision(mpreal::get_default_prec() + 5); // add about 5 precision (to make c converge less than epsilon)
+		res.setPrecision(mpreal::get_default_prec() + 5);
+		a0.setPrecision(mpreal::get_default_prec() + 5);
+		b0.setPrecision(mpreal::get_default_prec() + 5);
+		a1.setPrecision(mpreal::get_default_prec() + 5);
+		b1.setPrecision(mpreal::get_default_prec() + 5);
+		c.setPrecision(mpreal::get_default_prec() + 5);
+		powtwo.setPrecision(mpreal::get_default_prec() + 5);
 
 		c = sqrt(a1*a1 - b1*b1); // only for first term
 
