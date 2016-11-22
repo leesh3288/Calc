@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <mpirxx.h>
 #include <mpreal.h>
-#include <iostream>
 
 using mpfr::mpreal;
 
@@ -65,7 +64,6 @@ void process()
 	CV["pi"] = mpfr::const_pi();
 	CV["e"] = mpfr::const_euler();
 	CV["catalan"] = mpfr::const_catalan();
-	CV["eps"] = std::numeric_limits<mpreal>::epsilon(); // the smallest value eps such that 1 + eps != eps (classic machine epsilon) | eps is NOT A CONSTANT
 
 	int ite = 0, eqlen = (int)strlen(equ);
 
