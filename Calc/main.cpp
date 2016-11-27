@@ -14,11 +14,11 @@
 
 using mpfr::mpreal;
 
-#define MAXL_CONST 10
-#define MAXL_FUNC 10
+#define MAXL_FC 10
 
 
 std::stack<mpreal> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
+
 std::stack<char> OpSt;
 std::map<const char*, mpreal> CV; // ConstVal, saves constant values as desired precision
 
@@ -64,6 +64,7 @@ void process()
 	CV["pi"] = mpfr::const_pi();
 	CV["e"] = mpfr::const_euler();
 	CV["catalan"] = mpfr::const_catalan();
+	CV["inf"] = mpfr::const_infinity();
 
 	int ite = 0, eqlen = (int)strlen(equ);
 
@@ -75,18 +76,16 @@ void process()
 		{
 			int st = ite;
 			mpreal inp;
-			for (; equ[ite] >= '0'&&equ[ite] <= '9'; ite++);
 
-			if (equ[ite] == '.')
-				for (ite++; equ[ite] >= '0' && equ[ite] <= '9'; ite++);
-
-			mpfr_strtofr(inp.mpfr_ptr(), equ+st, NULL, 10, mpreal::get_default_rnd());
+			char *end;
+			mpfr_strtofr(inp.mpfr_ptr(), equ+st, &end, 10, mpreal::get_default_rnd());
+			ite = (int)((end - equ) / sizeof(char));
 
 			OutSt.push(inp);
 		}
 		else if ((equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_') // function & constants (input w/o #)
 		{
-			char fcs[MAXL_FUNC + 1];
+			char fcs[MAXL_FC + 1];
 			int cct;
 
 			for (cct = 0; (equ[ite] >= '0'&&equ[ite] <= '9') || (equ[ite] >= 'a'&&equ[ite] <= 'z') || (equ[ite] >= 'A'&&equ[ite] <= 'Z') || equ[ite] == '_'; ite++, cct++)
@@ -94,22 +93,23 @@ void process()
 			fcs[cct] = '\0';
 
 			if (strcmp(fcs, "pi") == 0) // checks if it's a predefined constant
-			{
 				OutSt.push(CV["pi"]);
-				continue;
-			}
 			else if (strcmp(fcs, "e") == 0)
-			{
 				OutSt.push(CV["e"]);
-				continue;
-			}
 			else if (strcmp(fcs, "catalan") == 0)
-			{
 				OutSt.push(CV["catalan"]);
-				continue;
+			else if (strcmp(fcs, "inf") == 0)
+				OutSt.push(CV["inf"]);
+			else // function
+			{
+				char hashval = FHash(fcs);
+				if (hashval == -1)
+				{
+					printf("Error(P): Undefined function/constant name \"%s\" encountered\n", fcs);
+					return;
+				}
+				OpSt.push(hashval);
 			}
-
-			OpSt.push(FHash(fcs));
 		}
 		else if (equ[ite] == ',') // comma (parameter separator)
 		{
@@ -121,7 +121,7 @@ void process()
 
 			if (OpSt.empty())
 			{
-				printf("Error(P): Left parenthesis not encountered, parsing failed.\n");
+				printf("Error(P): Left parenthesis missing or comma(',') misplaced\n");
 				return;
 			}
 
@@ -152,7 +152,7 @@ void process()
 
 			if (OpSt.empty())
 			{
-				printf("Error(P): Left parenthesis not encountered, parsing failed.\n");
+				printf("Error(P): Left parenthesis missing\n");
 				return;
 			}
 
@@ -221,7 +221,7 @@ void process()
 	{
 		if (OpSt.top() == 1) // if LParen is left over
 		{
-			printf("Error(P): Left parenthesis remaining (right parenthesis missing), parsing failed.\n");
+			printf("Error(P): Right parenthesis missing\n");
 			return;
 		}
 		OFProc(OpSt.top());
@@ -242,7 +242,7 @@ void output()
 	}
 	if (!OpSt.empty())
 	{
-		printf("Error(O): Operator stack not empty.\n");
+		printf("Error(O): Operator stack not empty\n");
 		term = true;
 	}
 
@@ -702,7 +702,7 @@ void OFProc(char ofnum) // operator/function processor
 		n = OutSt.top();
 		OutSt.pop();
 
-		mpfr_agm(n.mpfr_ptr(), mpreal((1 + n)).mpfr_srcptr(), mpreal((1 - n)).mpfr_srcptr(), mpreal::get_default_rnd());
+		mpfr_agm(n.mpfr_ptr(), mpreal(1 + n).mpfr_srcptr(), mpreal(1 - n).mpfr_srcptr(), mpreal::get_default_rnd());
 
 		OutSt.push(CV["pi"] / (2 * n));
 	}
@@ -875,7 +875,7 @@ char FHash(char str[])
 	else if (strcmp(str, "fib") == 0)
 		return 58;
 
-	return -1;
+	return -1; // error signal
 }
 
 // with functions with variable argument, need to separate somehow with indicators
