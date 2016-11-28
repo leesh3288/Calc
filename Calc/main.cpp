@@ -4,10 +4,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <cmath>
-#include <vector>
 #include <stack>
-#include <map>
 #include <algorithm>
 #include <chrono>
 #include <mpirxx.h>
@@ -854,6 +851,14 @@ void OFProc(char ofnum) // operator/function processor
 
 		OutSt.push(trunc(n));
 	}
+	else if (ofnum == 67)
+	{
+		mpreal n;
+		n = OutSt.top();
+		OutSt.pop();
+
+		OutSt.push(abs(n));
+	}
 
 	return;
 }
@@ -981,6 +986,9 @@ char FHash(char str[])
 	else if (strcmp(str, "trunc") == 0)
 		return 66;
 
+	else if (strcmp(str, "abs") == 0)
+		return 67;
+
 	return -1; // error signal
 }
 
@@ -1061,6 +1069,8 @@ Operator/Function Hash Values:
 64 = ceil
 65 = round
 66 = trunc
+
+67 = abs
 
 ~255 reserved
 */
