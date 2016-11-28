@@ -19,12 +19,12 @@ using mpfr::mpreal;
 
 
 std::stack<mpreal> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
-
 std::stack<char> OpSt;
 
 char equ[100000], outtype[10];
 int decprec;
 bool isSCI;
+std::chrono::high_resolution_clock::time_point timebase;
 
 void input();
 void process();
@@ -60,6 +60,8 @@ void input()
 
 void process()
 {
+	timebase = std::chrono::high_resolution_clock::now();
+
 	int ite = 0, eqlen = (int)strlen(equ);
 
 	while (ite < eqlen)
@@ -240,6 +242,8 @@ void output()
 		term = true;
 	}
 
+	auto timelen = std::chrono::high_resolution_clock::now() - timebase;
+
 	if (!term)
 	{
 		if (isSCI)
@@ -254,6 +258,8 @@ void output()
 			mpfr_printf(form, OutSt.top().mpfr_srcptr());
 		}
 	}
+
+	printf("Calculation Time: %lld.%09lld\n", timelen.count() / 1000000000, timelen.count() % 1000000000);
 
 	return;
 }
