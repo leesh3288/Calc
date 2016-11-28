@@ -9,6 +9,7 @@
 #include <stack>
 #include <map>
 #include <algorithm>
+#include <chrono>
 #include <mpirxx.h>
 #include <mpreal.h>
 
@@ -20,7 +21,6 @@ using mpfr::mpreal;
 std::stack<mpreal> OutSt; // originally an output QUEUE, implemented as a stack for easy calculation (however, calculations must be done in reverse order)
 
 std::stack<char> OpSt;
-std::map<const char*, mpreal> CV; // ConstVal, saves constant values as desired precision
 
 char equ[100000], outtype[10];
 int decprec;
@@ -60,12 +60,6 @@ void input()
 
 void process()
 {
-	// const values init
-	CV["pi"] = mpfr::const_pi();
-	CV["e"] = mpfr::const_euler();
-	CV["catalan"] = mpfr::const_catalan();
-	CV["inf"] = mpfr::const_infinity();
-
 	int ite = 0, eqlen = (int)strlen(equ);
 
 	while (ite < eqlen)
@@ -93,13 +87,13 @@ void process()
 			fcs[cct] = '\0';
 
 			if (strcmp(fcs, "pi") == 0) // checks if it's a predefined constant
-				OutSt.push(CV["pi"]);
+				OutSt.push(mpfr::const_pi());
 			else if (strcmp(fcs, "e") == 0)
-				OutSt.push(CV["e"]);
+				OutSt.push(mpfr::const_euler());
 			else if (strcmp(fcs, "catalan") == 0)
-				OutSt.push(CV["catalan"]);
+				OutSt.push(mpfr::const_catalan());
 			else if (strcmp(fcs, "inf") == 0)
-				OutSt.push(CV["inf"]);
+				OutSt.push(mpfr::const_infinity());
 			else // function
 			{
 				char hashval = FHash(fcs);
@@ -704,7 +698,7 @@ void OFProc(char ofnum) // operator/function processor
 
 		mpfr_agm(n.mpfr_ptr(), mpreal(1 + n).mpfr_srcptr(), mpreal(1 - n).mpfr_srcptr(), mpreal::get_default_rnd());
 
-		OutSt.push(CV["pi"] / (2 * n));
+		OutSt.push(mpfr::const_pi() / (2 * n));
 	}
 	else if (ofnum == 56) // EllipticE(n), calculated by AGM, Landen Transformation & much more calculations
 	{
@@ -740,7 +734,7 @@ void OFProc(char ofnum) // operator/function processor
 			res += powtwo*c*c;
 		}
 
-		mpreal ans = (1 - res / 2)*CV["pi"] / (2 * a1);
+		mpreal ans = (1 - res / 2)*mpfr::const_pi() / (2 * a1);
 		ans.setPrecision(mpreal::get_default_prec());
 		OutSt.push(ans);
 	}
@@ -766,6 +760,93 @@ void OFProc(char ofnum) // operator/function processor
 		mpz_fib_ui(tmp.get_mpz_t(), n.toULLong(mpreal::get_default_rnd()));
 
 		OutSt.push(mpreal(tmp.get_mpz_t()));
+	}
+	else if (ofnum == 59)
+	{
+		mpreal n;
+		n = OutSt.top();
+		OutSt.pop();
+
+		mpfr_zeta(n.mpfr_ptr(), n.mpfr_srcptr(), mpreal::get_default_rnd());
+
+		OutSt.push(n);
+	}
+	else if (ofnum == 60)
+	{
+		mpreal n;
+		gmp_randstate_t r;
+
+		gmp_randinit_mt(r);
+		gmp_randseed(r, mpz_class(std::chrono::high_resolution_clock::now().time_since_epoch().count()).get_mpz_t());
+
+		mpfr_urandomb(n.mpfr_ptr(), r);
+
+		OutSt.push(n);
+	}
+	else if (ofnum == 61)
+	{
+		mpreal n;
+		gmp_randstate_t r;
+
+		gmp_randinit_mt(r);
+		gmp_randseed(r, mpz_class(std::chrono::high_resolution_clock::now().time_since_epoch().count()).get_mpz_t());
+
+		mpfr_grandom(n.mpfr_ptr(), NULL, r, mpreal::get_default_rnd());
+
+		OutSt.push(n);
+	}
+	else if (ofnum == 62)
+	{
+		mpreal n1, n2;
+		mpz_class i1, i2, rn;
+		gmp_randstate_t r;
+		n2 = OutSt.top();
+		OutSt.pop();
+		n1 = OutSt.top();
+		OutSt.pop();
+
+		gmp_randinit_mt(r);
+		gmp_randseed(r, mpz_class(std::chrono::high_resolution_clock::now().time_since_epoch().count()).get_mpz_t());
+
+		mpfr_get_z(i1.get_mpz_t(), n1.mpfr_srcptr(), mpreal::get_default_rnd());
+		mpfr_get_z(i2.get_mpz_t(), n2.mpfr_srcptr(), mpreal::get_default_rnd());
+
+		mpz_urandomm(rn.get_mpz_t(), r, mpz_class(i2 - i1 + 1).get_mpz_t());
+		rn += i1;
+
+		OutSt.push(mpreal(rn.get_mpz_t()));
+	}
+	else if (ofnum == 63)
+	{
+		mpreal n;
+		n = OutSt.top();
+		OutSt.pop();
+
+		OutSt.push(floor(n));
+	}
+	else if (ofnum == 64)
+	{
+		mpreal n;
+		n = OutSt.top();
+		OutSt.pop();
+
+		OutSt.push(ceil(n));
+	}
+	else if (ofnum == 65)
+	{
+		mpreal n;
+		n = OutSt.top();
+		OutSt.pop();
+
+		OutSt.push(round(n));
+	}
+	else if (ofnum == 66)
+	{
+		mpreal n;
+		n = OutSt.top();
+		OutSt.pop();
+
+		OutSt.push(trunc(n));
 	}
 
 	return;
@@ -875,6 +956,25 @@ char FHash(char str[])
 	else if (strcmp(str, "fib") == 0)
 		return 58;
 
+	else if (strcmp(str, "zeta") == 0)
+		return 59;
+
+	else if (strcmp(str, "urand") == 0)
+		return 60;
+	else if (strcmp(str, "grand") == 0)
+		return 61;
+	else if (strcmp(str, "irand") == 0)
+		return 62;
+
+	else if (strcmp(str, "floor") == 0)
+		return 63;
+	else if (strcmp(str, "ceil") == 0)
+		return 64;
+	else if (strcmp(str, "round") == 0)
+		return 65;
+	else if (strcmp(str, "trunc") == 0)
+		return 66;
+
 	return -1; // error signal
 }
 
@@ -944,6 +1044,17 @@ Operator/Function Hash Values:
 57 = AGM (Arithmetic-Geometric Mean)
 
 58 = fib (nth fibonacci sequence)
+
+59 = zeta (Riemann zeta function)
+
+60 = urand (uniformly distributed random float in [0, 1))
+61 = grand (standard normal(gaussian) distributed random float)
+62 = irand (uniformly distributed random integer in [n1, n2])
+
+63 = floor
+64 = ceil
+65 = round
+66 = trunc
 
 ~255 reserved
 */
