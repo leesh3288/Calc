@@ -35,6 +35,8 @@ int main(void)
 	input();
 	process();
 	output();
+
+	return 0;
 }
 
 void input()
